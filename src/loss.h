@@ -121,13 +121,6 @@ class HierarchicalSoftmaxLoss : public BinaryLogisticLoss {
   std::vector<Node> tree_;
   int32_t osz_;
   void buildTree(const std::vector<int64_t>& counts);
-  void dfs(
-      int32_t k,
-      real threshold,
-      int32_t node,
-      real score,
-      Predictions& heap,
-      const Vector& hidden) const;
 
  public:
   explicit HierarchicalSoftmaxLoss(

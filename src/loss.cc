@@ -10,6 +10,7 @@
 #include "utils.h"
 
 #include <cmath>
+#include <queue>
 
 namespace fasttext {
 
@@ -80,15 +81,19 @@ void Loss::findKBest(
     if (output[i] < threshold) {
       continue;
     }
-    if (heap.size() == k && std_log(output[i]) < heap.front().first) {
+    if (heap.size() == k && output[i] < heap.front().first) {
       continue;
     }
-    heap.push_back(std::make_pair(std_log(output[i]), i));
+    heap.emplace_back(output[i], i);
     std::push_heap(heap.begin(), heap.end(), comparePairs);
     if (heap.size() > k) {
       std::pop_heap(heap.begin(), heap.end(), comparePairs);
       heap.pop_back();
     }
+  }
+  
+  for (auto& item : heap) {
+	  item.first = std_log(item.first);
   }
 }
 
@@ -265,39 +270,35 @@ void HierarchicalSoftmaxLoss::predict(
     real threshold,
     Predictions& heap,
     Model::State& state) const {
-  dfs(k, threshold, 2 * osz_ - 2, 0.0, heap, state.hidden);
-  std::sort_heap(heap.begin(), heap.end(), comparePairs);
-}
 
-void HierarchicalSoftmaxLoss::dfs(
-    int32_t k,
-    real threshold,
-    int32_t node,
-    real score,
-    Predictions& heap,
-    const Vector& hidden) const {
-  if (score < std_log(threshold)) {
-    return;
+    // BFS implementation - in my case faster than DFS (but computeHidden takes way more time)
+    const Vector& hidden = state.hidden;
+    std::priority_queue<std::pair<real, int32_t>> pq;
+
+    real score = 1.0;
+    int32_t node = 2 * osz_ - 2;
+
+    pq.emplace(score, node);
+    while (!pq.empty() && heap.size() < k) {
+      std::tie(score, node) = pq.top();
+      if (score < threshold) {
+        break;
+      }
+      pq.pop();
+
+      if (tree_[node].left == -1 && tree_[node].right == -1) {
+        heap.emplace_back(std_log(score), node);
+        continue;
+      }
+      real f = wo_->dotRow(hidden, node - osz_);
+      f = 1. / (1 + std::exp(-f));
+
+      real score_right = score * f;  // exp of: score + log(f)
+      real score_left = score - score_right;  // exp of: score + log(1.0 - f)
+  
+      pq.emplace(score_left, tree_[node].left);
+      pq.emplace(score_right, tree_[node].right);
   }
-  if (heap.size() == k && score < heap.front().first) {
-    return;
-  }
-
-  if (tree_[node].left == -1 && tree_[node].right == -1) {
-    heap.push_back(std::make_pair(score, node));
-    std::push_heap(heap.begin(), heap.end(), comparePairs);
-    if (heap.size() > k) {
-      std::pop_heap(heap.begin(), heap.end(), comparePairs);
-      heap.pop_back();
-    }
-    return;
-  }
-
-  real f = wo_->dotRow(hidden, node - osz_);
-  f = 1. / (1 + std::exp(-f));
-
-  dfs(k, threshold, tree_[node].left, score + std_log(1.0 - f), heap, hidden);
-  dfs(k, threshold, tree_[node].right, score + std_log(f), heap, hidden);
 }
 
 SoftmaxLoss::SoftmaxLoss(std::shared_ptr<Matrix>& wo) : Loss(wo) {}
