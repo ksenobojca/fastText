@@ -416,11 +416,18 @@ PYBIND11_MODULE(fasttext_pybind, m) {
              const char* onUnicodeError) {
             std::vector<py::array_t<fasttext::real>> allProbabilities;
             std::vector<std::vector<py::str>> allLabels;
-            std::vector<std::pair<fasttext::real, std::string>> predictions;
+            std::vector<std::vector<std::pair<fasttext::real, std::string>>> allPredictions;
 
+            {
+              py::gil_scoped_release release;
             for (const std::string& text : lines) {
+                allPredictions.emplace_back();
               std::stringstream ioss(text);
-              m.predictLine(ioss, predictions, k, threshold);
+                m.predictLine(ioss, allPredictions.back(), k, threshold);
+              }
+            }
+            
+            for (auto& predictions : allPredictions) {
               std::vector<fasttext::real> probabilities;
               std::vector<py::str> labels;
 
