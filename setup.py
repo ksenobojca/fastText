@@ -76,10 +76,11 @@ ext_modules = [
         ],
         language='c++',
         extra_compile_args=["-O0 -fno-inline -fprofile-arcs -pthread -march=native" if coverage else
-                            "-O3 -funroll-loops -pthread -march=native"],
+                            "-O3 -funroll-loops -pthread -march=native -flto -ffast-math"],
     ),
 ]
 
+os.environ['CFLAGS'] = "-O3 -funroll-loops -pthread -march=native -flto -ffast-math"
 
 # As of Python 3.6, CCompiler has a `has_flag` method.
 # cf http://bugs.python.org/issue26689
